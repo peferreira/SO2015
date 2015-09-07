@@ -39,14 +39,15 @@ int main(){
 
       if (buf[0]!=0)
         add_history(buf);
-      token = strtok(buf," ");
-      argv[1] = strtok(NULL,"\n");
 
       if (fork() != 0) { 
 
         waitpid(-1,&status,0);
       }
       else {
+
+        token = strtok(buf," ");
+        argv[1] = strtok(NULL,"\n");
 
         if (strcmp(token,"cd")==0) {
           chdir(argv[1]);
