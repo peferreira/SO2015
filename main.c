@@ -269,7 +269,7 @@ struct process *selectTheLongestRemainingTime() {
 
 void substituteProcess(struct process *new_p, struct process *old_p, double cpu_time_used) {
 
-	parar old_p
+	/*parar old_p
 
 	if (new_p->created == 0) {
 
@@ -277,7 +277,7 @@ void substituteProcess(struct process *new_p, struct process *old_p, double cpu_
 	}
 	else {
 		start 
-	}
+	}*/
 }
 
 void firstComeFirstServed() {
@@ -407,7 +407,7 @@ void shortestRemainingTime() {
             		qsort(processArray, numThreads,sizeof(struct process),compare_remainingTime);
             		longest = selectTheLongestRemainingTime();
             		if (newProcess->remainingTime < longest->remainingTime) {
-            			substituteProcess(newProcess, longest);
+            			substituteProcess(newProcess, longest, cpu_time_used);
             		}
             		//printProcessInfo(*newProcess);
             	} 
@@ -433,7 +433,7 @@ int main() {
 
     mallocProcessArray();
     
-    shortestRemainingTime();
+    firstComeFirstServed();
 
     //joinThreads();
 
