@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <signal.h>
+#include <semaphore.h>
 
 #define MAX 1000000
 #define CORES 1
@@ -20,16 +21,17 @@ struct process {
     double deadline;
     int p;
     double startTime;
-    long remainingTime;
+    double remainingTime;
     pthread_t *thread;
     int id;
     int running;
     int created;
     int finished;
+    sem_t semaphore;
 };
 
-double t0[] = {5,  7,8,9,10};
-double dt[] = {12,10,5,6,7};
+double t0[] = {3, 7,8,9,10};
+double dt[] = {20,5,2,15,15};
 double deadline[] = {44,55,11,22,33};
 int p[] = {11,4,3,2,1};
 char name[] = {'a','b','c','d','e'};
@@ -46,18 +48,21 @@ void incrementCores() {
     cores++;
 }
 
-void *thread_function(void *arg) {
+void *thread_function(void *context) {
 
   int i; 
+  struct process *proc = context;
   printf("\n");
 
   while (1) {
 
-    i++;
+    sem_wait(&proc->semaphore);
+    /* semáforo usado para bloquear o processo */
+    sem_post(&proc->semaphore);
 
+    i++;
     if (i == MAX) {
 
-        //printf("%d\n", i);
         i = 0;
     }
 
@@ -157,7 +162,7 @@ void printArray(struct process *array) {
     int i;
     printf("Array:\n");
     for (i = 0; i < numThreads; i++) 
-        printf("%f\n", array[i].t0);
+        printf("%f\n", array[i].remainingTime);
 }
 
 void mallocProcessArray() {
@@ -177,6 +182,7 @@ void mallocProcessArray() {
         processArray[i].finished = 0;
         processArray[i].startTime = 0;
         processArray[i].remainingTime = dt[i];
+        sem_init(&(processArray[i].semaphore), 0, 1);
         //processArray[i].name = name[i];
         processArray[i].thread = malloc(sizeof(pthread_t));
     }
@@ -208,7 +214,7 @@ void printTime(double cpu_time_used) {
 int createThread(struct process *p, double cpu_time_used) {
 
     printf("Criando thread em %f\n", cpu_time_used);
-    if (pthread_create(p->thread, NULL, thread_function, NULL)) {
+    if (pthread_create(p->thread, NULL, thread_function, p)) {
 
         printf("Error creating thread.");
         return 1;
@@ -219,6 +225,13 @@ int createThread(struct process *p, double cpu_time_used) {
     p->created = 1;
 
     return 0;
+}
+
+void startThread(struct process *p,double cpu_time_used){
+    sem_post(&p->semaphore);
+    p->running = 1;
+    p->startTime = cpu_time_used;
+    p->dt = p->remainingTime;
 }
 
 int killProcesses(double cpu_time_used) {
@@ -235,6 +248,7 @@ int killProcesses(double cpu_time_used) {
                       printf("Thread %d morreu em %f\n", i, cpu_time_used);
                       count++;
                       processArray[i].running = 0;
+                      processArray[i].finished = 1;
                 }
          }
     }
@@ -249,7 +263,15 @@ void updateRemainingTimes(double cpu_time_used) {
 	for (i = 0; i < numThreads; i++) {
 		if (processArray[i].running == 1) {
 
+            //printf("remaining time anterior %f\n", processArray[i].remainingTime);
+            printf("cpu time %f\n", cpu_time_used);
+            //printf("startTime %f\n", processArray[i].startTime);
+
 			processArray[i].remainingTime = processArray[i].remainingTime - (cpu_time_used - processArray[i].startTime);
+            if (processArray[i].remainingTime < 0) {
+                //processArray[i].remainingTime = 0;
+                //printf("Clock: %f  Remaining time negativo %f\n", cpu_time_used, processArray[i].remainingTime);sleep(5000);
+            }
 
 		}
 	}
@@ -269,15 +291,23 @@ struct process *selectTheLongestRemainingTime() {
 
 void substituteProcess(struct process *new_p, struct process *old_p, double cpu_time_used) {
 
-	/*parar old_p
+    printf("Vai bloquear processo de t0 %f\n", old_p->t0);
+	sem_wait(&old_p->semaphore);
+    old_p->running = 0;
 
 	if (new_p->created == 0) {
 
 		createThread(new_p, cpu_time_used);
+        printf("Substitute criando processo de t0 %f\n", new_p->t0);
+
 	}
 	else {
-		start 
-	}*/
+	
+        printf("Vai startar o processo de t0 %f\n", new_p->t0);
+        sem_post(&new_p->semaphore); 
+	}
+
+        printf("Bloqueou processo de t0 %f\n", old_p->t0);
 }
 
 void firstComeFirstServed() {
@@ -386,36 +416,48 @@ void shortestRemainingTime() {
         k = 0;
 
         while (k < numThreads) { 
+            if (cpu_time_used >= processArray[k].t0 && processArray[k].finished == 0 && processArray[k].running == 0) {
+                if (runningThreads < cores) { 
 
-            if (cpu_time_used >= processArray[k].t0 && processArray[k].created  == 0) {
+                    if (processArray[k].created  == 0) {
 
-            	if (runningThreads < cores) {
+                        if (createThread(&processArray[k], cpu_time_used) == 0) {
 
-            		if (createThread(&processArray[k], cpu_time_used) == 0) {
+                            printTime(cpu_time_used);
+                            printProcessInfo(processArray[k]);
+                        }
+                        else abort();                   
+                    } 
+                    else {
+                       startThread(&processArray[k], cpu_time_used);
+                    }
+                    runningThreads++;   
+                }
+                
+              
+                else {   //printf("Tentar trocar processo em %f\n", cpu_time_used);
 
-                 		printTime(cpu_time_used);
-                    	printProcessInfo(processArray[k]);
-                    	runningThreads++;
-                	}
-                	else abort();            		
-            	}  
-            	else {   
-
-            		updateRemainingTimes(cpu_time_used);
-            		newProcess = &processArray[k];
-            		//printProcessInfo(*newProcess);
-            		qsort(processArray, numThreads,sizeof(struct process),compare_remainingTime);
+                	newProcess = &processArray[k];
+                    //printf("%f\n", cpu_time_used);
+                    //printf("antes\n");
+            		//printArray(processArray);
+                    qsort(processArray, numThreads,sizeof(struct process),compare_remainingTime);
+                    //printf("depois\n");
+                    printArray(processArray);
             		longest = selectTheLongestRemainingTime();
+                    printf("remaining time do longest: %f\n", longest->remainingTime);
+                    printf("remain time do novo: %f\n", newProcess->remainingTime);
             		if (newProcess->remainingTime < longest->remainingTime) {
+                        printf("Novo processo tem que entrar\n");
             			substituteProcess(newProcess, longest, cpu_time_used);
             		}
-            		//printProcessInfo(*newProcess);
-            	} 
-        	}
-        	k++;
+        		//printProcessInfo(*newProcess);
+        	   }
+            } 
+        k++;
         }
+        updateRemainingTimes(cpu_time_used);
 
-    
         if (runningThreads > 0) {
 
             delta = killProcesses(cpu_time_used);
@@ -429,11 +471,11 @@ int main() {
 
     int i;
     numThreads = 5;
-    cores = 3;
+    cores = 1;
 
     mallocProcessArray();
     
-    firstComeFirstServed();
+    shortestRemainingTime();
 
     //joinThreads();
 
