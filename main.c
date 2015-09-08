@@ -54,7 +54,7 @@ void *thread_function(void *context) {
   struct process *proc = context;
   printf("\n");
 
-  while (1) {
+  while (!proc->finished)  {
 
     sem_wait(&proc->semaphore);
     /* semáforo usado para bloquear o processo */
@@ -68,6 +68,7 @@ void *thread_function(void *context) {
     }
 
   }
+  printf("thread t0: %f vai morrer\n", proc->t0);
 
   return NULL;
 }
@@ -245,11 +246,13 @@ int killProcesses(double cpu_time_used) {
 
         if (cpu_time_used > (processArray[i].dt + processArray[i].startTime) ) {
                 if (processArray[i].running == 1) {
-                      pthread_kill(*(processArray[i].thread), SIGCHLD);
-                      printf("Thread de t0 %f morreu em %f\n", processArray[i].t0, cpu_time_used);
-                      count++;
-                      processArray[i].running = 0;
-                      processArray[i].finished = 1;
+                      //sem_wait(&processArray[i].semaphore);
+                      //if(pthread_kill(*(processArray[i].thread), SIGCHLD)== 0){
+                        printf("Thread de t0 %f morreu em %f\n", processArray[i].t0, cpu_time_used);
+                        count++;
+                        processArray[i].running = 0;
+                        processArray[i].finished = 1;
+                
                 }
          }
     }
@@ -495,7 +498,7 @@ int main() {
 
     mallocProcessArray();
     
-    firstComeFirstServed();
+    shortestRemainingTime();
 
     //joinThreads();
 
