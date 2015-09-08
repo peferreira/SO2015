@@ -31,7 +31,7 @@ struct process {
 };
 
 double t0[] = {3, 7,8,9,10};
-double dt[] = {20,5,2,15,15};
+double dt[] = {5,5,2,15,15};
 double deadline[] = {44,55,11,22,33};
 int p[] = {11,4,3,2,1};
 char name[] = {'a','b','c','d','e'};
@@ -47,7 +47,7 @@ void incrementCores() {
 
     cores++;
 }
-
+ 
 void *thread_function(void *context) {
 
   int i; 
@@ -63,6 +63,7 @@ void *thread_function(void *context) {
     i++;
     if (i == MAX) {
 
+        //printf("Rodando %f\n", proc->t0);
         i = 0;
     }
 
@@ -182,7 +183,7 @@ void mallocProcessArray() {
         processArray[i].finished = 0;
         processArray[i].startTime = 0;
         processArray[i].remainingTime = dt[i];
-        sem_init(&(processArray[i].semaphore), 0, 1);
+        sem_init(&(processArray[i].semaphore), 0, 0);
         //processArray[i].name = name[i];
         processArray[i].thread = malloc(sizeof(pthread_t));
     }
@@ -203,7 +204,8 @@ void printProcessInfo(struct process p) {
 
     printf("t0 : %f\t", p.t0);
     printf("dt: %f\n", p.dt);
-
+    printf("remaining time: %f\n", p.remainingTime);
+    printf("startTime: %f\n", p.startTime);
 }
 
 void printTime(double cpu_time_used) {
@@ -220,8 +222,7 @@ int createThread(struct process *p, double cpu_time_used) {
         return 1;
     }
 
-    p->startTime = cpu_time_used;
-    p->running = 1;
+    p->running = 0;
     p->created = 1;
 
     return 0;
@@ -256,25 +257,16 @@ int killProcesses(double cpu_time_used) {
     return count;
 }
 
-void updateRemainingTimes(double cpu_time_used) {
+void updateElapsedTimes(double elapsedTime) {
 
-	int i;
+    int i;
 
-	for (i = 0; i < numThreads; i++) {
-		if (processArray[i].running == 1) {
+    for (i = 0; i < numThreads; i++) {
+        if (processArray[i].running == 1) {
 
-            //printf("remaining time anterior %f\n", processArray[i].remainingTime);
-            printf("cpu time %f\n", cpu_time_used);
-            //printf("startTime %f\n", processArray[i].startTime);
-
-			processArray[i].remainingTime = processArray[i].remainingTime - (cpu_time_used - processArray[i].startTime);
-            if (processArray[i].remainingTime < 0) {
-                //processArray[i].remainingTime = 0;
-                //printf("Clock: %f  Remaining time negativo %f\n", cpu_time_used, processArray[i].remainingTime);sleep(5000);
-            }
-
-		}
-	}
+            processArray[i].remainingTime = processArray[i].remainingTime - elapsedTime;
+        }
+    }
 }
 
 struct process *selectTheLongestRemainingTime() {
@@ -291,23 +283,28 @@ struct process *selectTheLongestRemainingTime() {
 
 void substituteProcess(struct process *new_p, struct process *old_p, double cpu_time_used) {
 
-    printf("Vai bloquear processo de t0 %f\n", old_p->t0);
+    printf("Vai bloquear processo de remainingTime %f\n", old_p->remainingTime);
 	sem_wait(&old_p->semaphore);
     old_p->running = 0;
 
+    startThread(new_p, cpu_time_used);
+    printf("Start processo de remainingTime %f\n", new_p->remainingTime);
+    printf("Bloqueou processo de remainingTime %f\n", old_p->remainingTime);
+
+/*
 	if (new_p->created == 0) {
 
 		createThread(new_p, cpu_time_used);
-        printf("Substitute criando processo de t0 %f\n", new_p->t0);
+        startThread(new_p);
+        printf("Substitute criando processo de remainingTime %f\n", new_p->remainingTime);
 
 	}
 	else {
 	
-        printf("Vai startar o processo de t0 %f\n", new_p->t0);
+        printf("Vai startar o processo de remainingTime %f\n", new_p->remainingTime);
         sem_post(&new_p->semaphore); 
 	}
-
-        printf("Bloqueou processo de t0 %f\n", old_p->t0);
+*/
 }
 
 void firstComeFirstServed() {
@@ -316,8 +313,8 @@ void firstComeFirstServed() {
 
     clock_t start, end;
     double cpu_time_used;
-    int i, k, runningThreads, killedProcesses, delta;
-    k = runningThreads = killedProcesses = 0;
+    int i, k, runningThreads, killedProcesses, delta, m;
+    k = runningThreads = killedProcesses = m = 0;
 
     start = clock();
 
@@ -329,14 +326,23 @@ void firstComeFirstServed() {
         end = clock();
         cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
 
-        if (k < numThreads && cpu_time_used >= processArray[k].t0 && (runningThreads < cores)) {
+        if (k < numThreads && cpu_time_used >= processArray[k].t0) {
+
             
             if (createThread(&processArray[k], cpu_time_used) == 0) {
                 printProcessInfo(processArray[k]);
-                runningThreads++;
                 k++;
             }
             else abort();
+        }
+
+        if (runningThreads < cores) {
+
+            if (m < k) {
+                startThread(&processArray[m], cpu_time_used);
+                runningThreads++;
+                m++;
+            }
         }
 
         if (runningThreads > 0) {
@@ -403,6 +409,7 @@ void shortestRemainingTime() {
     int i, k, killedProcesses, runningThreads, delta;
     killedProcesses = runningThreads = 0;
     struct process *newProcess, *longest;
+    double elapsedTime;
 
     start = clock();
 
@@ -412,26 +419,31 @@ void shortestRemainingTime() {
     while (killedProcesses < numThreads) {
 
         end = clock();
+        elapsedTime = cpu_time_used;
         cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+        elapsedTime = cpu_time_used - elapsedTime;
         k = 0;
+        //updateRemainingTimes(cpu_time_used);
+        updateElapsedTimes(elapsedTime);
 
         while (k < numThreads) { 
             if (cpu_time_used >= processArray[k].t0 && processArray[k].finished == 0 && processArray[k].running == 0) {
-                if (runningThreads < cores) { 
-
-                    if (processArray[k].created  == 0) {
+                
+                if (processArray[k].created  == 0) {
 
                         if (createThread(&processArray[k], cpu_time_used) == 0) {
 
                             printTime(cpu_time_used);
                             printProcessInfo(processArray[k]);
                         }
-                        else abort();                   
-                    } 
-                    else {
-                       startThread(&processArray[k], cpu_time_used);
-                    }
-                    runningThreads++;   
+                        else abort();
+                }
+
+
+                if (runningThreads < cores) { 
+
+                   startThread(&processArray[k], cpu_time_used);
+                   runningThreads++;   
                 }
                 
               
@@ -443,20 +455,19 @@ void shortestRemainingTime() {
             		//printArray(processArray);
                     qsort(processArray, numThreads,sizeof(struct process),compare_remainingTime);
                     //printf("depois\n");
-                    printArray(processArray);
+                    //printArray(processArray);
             		longest = selectTheLongestRemainingTime();
-                    printf("remaining time do longest: %f\n", longest->remainingTime);
-                    printf("remain time do novo: %f\n", newProcess->remainingTime);
+                    //printf("remaining time do longest: %f\n", longest->remainingTime);
+                    //printf("remain time do novo: %f\n", newProcess->remainingTime);
             		if (newProcess->remainingTime < longest->remainingTime) {
-                        printf("Novo processo tem que entrar\n");
+                        printf("Novo processo tem que entrar no tempo %f\n", cpu_time_used);
             			substituteProcess(newProcess, longest, cpu_time_used);
             		}
         		//printProcessInfo(*newProcess);
         	   }
             } 
-        k++;
+            k++;
         }
-        updateRemainingTimes(cpu_time_used);
 
         if (runningThreads > 0) {
 
@@ -475,7 +486,7 @@ int main() {
 
     mallocProcessArray();
     
-    shortestRemainingTime();
+    firstComeFirstServed();
 
     //joinThreads();
 
