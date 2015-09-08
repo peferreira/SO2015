@@ -246,7 +246,7 @@ int killProcesses(double cpu_time_used) {
         if (cpu_time_used > (processArray[i].dt + processArray[i].startTime) ) {
                 if (processArray[i].running == 1) {
                       pthread_kill(*(processArray[i].thread), SIGCHLD);
-                      printf("Thread %d morreu em %f\n", i, cpu_time_used);
+                      printf("Thread de t0 %f morreu em %f\n", processArray[i].t0, cpu_time_used);
                       count++;
                       processArray[i].running = 0;
                       processArray[i].finished = 1;
@@ -376,14 +376,23 @@ void shortestJobFirst() {
 
         while (k < numThreads) {
 
-            if (cpu_time_used >= processArray[k].t0 && runningThreads < cores && processArray[k].created  == 0) {
-                if (createThread(&processArray[k], cpu_time_used) == 0) {
+            if (cpu_time_used >= processArray[k].t0 && processArray[k].finished == 0 && processArray[k].running == 0) {
 
-                    printTime(cpu_time_used);
-                    printProcessInfo(processArray[k]);
-                    runningThreads++;
+                if (processArray[k].created  == 0) {
+
+                        if (createThread(&processArray[k], cpu_time_used) == 0) {
+
+                            printTime(cpu_time_used);
+                            printProcessInfo(processArray[k]);
+                        }
+                        else abort();
                 }
-                else abort();
+
+                if (runningThreads < cores) { 
+
+                   startThread(&processArray[k], cpu_time_used);
+                   runningThreads++;   
+                }
             }
             k++;
         }
@@ -486,7 +495,7 @@ int main() {
 
     mallocProcessArray();
     
-    firstComeFirstServed();
+    shortestJobFirst();
 
     //joinThreads();
 
