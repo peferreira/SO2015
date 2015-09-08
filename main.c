@@ -63,7 +63,7 @@ void *thread_function(void *context) {
     i++;
     if (i == MAX) {
 
-        //printf("Rodando %f\n", proc->t0);
+        printf("Rodando %f\n", proc->t0);
         i = 0;
     }
 
@@ -495,7 +495,7 @@ int main() {
 
     mallocProcessArray();
     
-    shortestJobFirst();
+    firstComeFirstServed();
 
     //joinThreads();
 
