@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -5,11 +6,15 @@
 #include <time.h>
 #include <signal.h>
 #include <semaphore.h>
+#include <string.h>
 
 #define MAX 1000000
+#define NPROCSMAX 100
 #define CORES 1
+#define NAMESIZEMAX 150
 
 int numThreads;
+int nprocs;
 int cores;
 long timer;
 
@@ -30,13 +35,56 @@ struct process {
     sem_t semaphore;
 };
 
-double t0[] = {3, 7,8,9,10};
+/*double t0[] = {3, 7,8,9,10};
 double dt[] = {5,5,2,15,15};
 double deadline[] = {44,55,11,22,33};
 int p[] = {11,4,3,2,1};
-char name[] = {'a','b','c','d','e'};
+char name[] = {'a','b','c','d','e'};*/
+double t0[NPROCSMAX];
+double dt[NPROCSMAX];
+double deadline[NPROCSMAX];
+int p[NPROCSMAX];
+char **name;
 
 struct process *processArray;
+
+void printIncomingProcess(){
+    int i;
+    for(i = 0; i < nprocs; i++){
+        printf("%f %s %f %f %d\n", t0[nprocs], name[nprocs], dt[nprocs], deadline[nprocs], p[nprocs]);    
+    }
+}
+
+void readInput(){
+        int i;
+	    char    *buffer;
+        char *t0_in, *dt_in, *deadline_in, *p_in, *name_in;
+        size_t  n = 1024;
+        nprocs = 0;
+        buffer = malloc(n);
+        name = malloc(NPROCSMAX*sizeof(char *));
+       
+        while ((getline(&buffer, &n, stdin) != -1)) {
+                t0_in = strtok(buffer," ");
+                t0[nprocs] = atof(t0_in);
+                name_in = strtok(NULL," ");
+                name[nprocs] = name_in;
+                dt_in = strtok(NULL," ");
+                dt[nprocs] = atof(dt_in);
+                deadline_in = strtok(NULL," ");
+                deadline[nprocs] = atof(deadline_in);
+                p_in = strtok(NULL,"\r\n");
+                p[nprocs] = atoi(p_in);
+                printf("%s %s %s %s %s\n", t0_in, name_in, dt_in, deadline_in, p_in);
+                printf("%f %s %f %f %d\n", t0[nprocs], name[nprocs], dt[nprocs], deadline[nprocs], p[nprocs]);
+                nprocs++;
+        }
+        
+
+        for(i = 0; i < nprocs; i++){
+            printf("%f %s %f %f %d\n", t0[nprocs], name[nprocs], dt[nprocs], deadline[nprocs], p[nprocs]);    
+        }
+}
 
 void decrementCores() {
 
@@ -494,13 +542,16 @@ void shortestRemainingTime() {
 
 int main() {
 
-
+    int i;
     numThreads = 5;
     cores = 1;
+    readInput();
 
-    mallocProcessArray();
+     
     
-    shortestRemainingTime();
+    /*mallocProcessArray();
+    
+    shortestRemainingTime();*/
 
     /*joinThreads();*/
 
