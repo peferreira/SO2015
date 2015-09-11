@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -26,11 +27,12 @@ int main(){
     char *token = NULL;
     char *argv[]={"ls","",NULL};
     int *status;
-
+    
     getcwd(pathBuff, 1024);
     setUpPath();
     buf = readline(path);
-
+    status = malloc(512*sizeof(int));
+    
     while(buf != NULL) {
       
 
@@ -42,7 +44,7 @@ int main(){
 
       if (fork() != 0) { 
 
-        waitpid(-1,&status,0);
+        waitpid(-1,status,0);
       }
       else {
 
@@ -66,6 +68,6 @@ int main(){
        buf = readline(path);
     }
     free(buf);
-
+    free(status);
     return 0;
 }
